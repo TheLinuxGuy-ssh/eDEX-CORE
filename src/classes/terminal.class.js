@@ -138,7 +138,10 @@ class Terminal {
             let fitAddon = new FitAddon();
             this.term.loadAddon(fitAddon);
             this.term.open(document.getElementById(opts.parentId));
-            this.term.loadAddon(new WebglAddon());
+            // WebGL addon disabled by default for performance - enable via experimentalFeatures
+            if (window.settings.experimentalFeatures) {
+                this.term.loadAddon(new WebglAddon());
+            }
             let ligaturesAddon = new LigaturesAddon();
             this.term.loadAddon(ligaturesAddon);
             this.term.attachCustomKeyEventHandler(e => {
@@ -193,7 +196,7 @@ class Terminal {
             this.socket.addEventListener("message", e => {
                 let d = Date.now();
 
-                if (d - this.lastSoundFX > 30) {
+                if (d - this.lastSoundFX > 100) {
                     if(window.passwordMode == "false")
                         window.audioManager.stdout.play();
                     this.lastSoundFX = d;
@@ -404,7 +407,7 @@ class Terminal {
                         }
                     });
                 }
-            }, 1000);
+            }, 3000);
 
             this.tty = this.Pty.spawn(opts.shell || "bash", (opts.params.length > 0 ? opts.params : (process.platform === "win32" ? [] : ["--login"])), {
                 name: opts.env.TERM || "xterm-256color",

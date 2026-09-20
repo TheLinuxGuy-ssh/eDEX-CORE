@@ -57,7 +57,7 @@ class Cpuinfo {
 
             for (var i = 0; i < 2; i++) {
                 this.charts.push(new SmoothieChart({
-                    limitFPS: 30,
+                    limitFPS: 10,
                     responsive: true,
                     millisPerPixel: 50,
                     grid:{
@@ -106,18 +106,18 @@ class Cpuinfo {
             this.updateCPUtasks();
             this.loadUpdater = setInterval(() => {
                 this.updateCPUload();
-            }, 500);
+            }, 10000);
             if (process.platform !== "win32") {
                 this.tempUpdater = setInterval(() => {
                     this.updateCPUtemp();
-                }, 2000);
+                }, 10000);
             }
             this.speedUpdater = setInterval(() => {
                 this.updateCPUspeed();
-            }, 1000);
+            }, 10000);
             this.tasksUpdater = setInterval(() => {
                 this.updateCPUtasks();
-            }, 5000);
+            }, 10000);
         });
     }
     updateCPUload() {
@@ -182,6 +182,19 @@ class Cpuinfo {
             }
             this.updatingCPUtasks = false;
         });
+    }
+    destroy() {
+        if (this.loadUpdater) clearInterval(this.loadUpdater);
+        if (this.tempUpdater) clearInterval(this.tempUpdater);
+        if (this.speedUpdater) clearInterval(this.speedUpdater);
+        if (this.tasksUpdater) clearInterval(this.tasksUpdater);
+        if (this.charts) {
+            this.charts.forEach(c => c.stop());
+            this.charts = null;
+        }
+        this.series = null;
+        const el = document.getElementById("mod_cpuinfo");
+        if (el) el.remove();
     }
 }
 

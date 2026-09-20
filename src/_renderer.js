@@ -59,7 +59,7 @@ if (remote.process.argv.includes("--nointro")) {
 } else {
     window.settings.nointroOverride = false;
 }
-if (electron.remote.process.argv.includes("--nocursor")) {
+if (remote.process.argv.includes("--nocursor")) {
     window.settings.nocursorOverride = true;
 } else {
     window.settings.nocursorOverride = false;
@@ -204,7 +204,7 @@ function initSystemInformationProxy() {
 window.audioManager = new AudioManager();
 
 // See #223
-electron.remote.app.focus();
+remote.app.focus();
 
 let i = 0;
 if (window.settings.nointro || window.settings.nointroOverride) {
@@ -243,7 +243,7 @@ function displayLine() {
 
     switch(true) {
         case i === 2:
-            bootScreen.innerHTML += `eDEX-UI Kernel version ${electron.remote.app.getVersion()} boot at ${Date().toString()}; root:xnu-1699.22.73~1/RELEASE_X86_64`;
+            bootScreen.innerHTML += `eDEX-UI Kernel version ${remote.app.getVersion()} boot at ${Date().toString()}; root:xnu-1699.22.73~1/RELEASE_X86_64`;
         case i === 4:
             setTimeout(displayLine, 500);
             break;
@@ -334,7 +334,7 @@ async function getDisplayName() {
         return user;
 
     try {
-        user = await require("username")();
+        user = require("os").userInfo().username;
     } catch (e) {}
 
     return user;
@@ -422,14 +422,60 @@ async function initUI() {
     window.mods.clock = new Clock("mod_column_left");
     window.mods.sysinfo = new Sysinfo("mod_column_left");
     window.mods.hardwareInspector = new HardwareInspector("mod_column_left");
-    window.mods.cpuinfo = new Cpuinfo("mod_column_left");
-    window.mods.ramwatcher = new RAMwatcher("mod_column_left");
-    window.mods.toplist = new Toplist("mod_column_left");
+    
+    // Conditional modules based on settings (default off for performance)
+    if (window.settings.cpuinfoCharts !== false) {
+        window.mods.cpuinfo = new Cpuinfo("mod_column_left");
+    }
+    if (window.settings.ramwatcherPoints !== false) {
+        window.mods.ramwatcher = new RAMwatcher("mod_column_left");
+    }
+    if (window.settings.toplistEnabled !== false) {
+        window.mods.toplist = new Toplist("mod_column_left");
+    }
 
     // Right column
     window.mods.netstat = new Netstat("mod_column_right");
-    window.mods.globe = new LocationGlobe("mod_column_right");
-    window.mods.conninfo = new Conninfo("mod_column_right");
+    
+    // Lazy-load heavy modules on demand (disabled by default)
+    if (window.settings.showConninfo) {
+        window.mods.conninfo = new Conninfo("mod_column_right");
+    }
+    if (window.settings.showGlobe) {
+        window.mods.globe = new LocationGlobe("mod_column_right");
+    }
+
+    // Lazy-load functions for optional modules
+    window.lazyLoadConninfo = () => {
+        if (!window.mods.conninfo) {
+            window.mods.conninfo = new Conninfo("mod_column_right");
+        }
+        return window.mods.conninfo;
+    };
+    window.lazyLoadGlobe = () => {
+        if (!window.mods.globe) {
+            window.mods.globe = new LocationGlobe("mod_column_right");
+        }
+        return window.mods.globe;
+    };
+    window.lazyLoadCpuinfo = () => {
+        if (!window.mods.cpuinfo) {
+            window.mods.cpuinfo = new Cpuinfo("mod_column_left");
+        }
+        return window.mods.cpuinfo;
+    };
+    window.lazyLoadRAMwatcher = () => {
+        if (!window.mods.ramwatcher) {
+            window.mods.ramwatcher = new RAMwatcher("mod_column_left");
+        }
+        return window.mods.ramwatcher;
+    };
+    window.lazyLoadToplist = () => {
+        if (!window.mods.toplist) {
+            window.mods.toplist = new Toplist("mod_column_left");
+        }
+        return window.mods.toplist;
+    };
 
     // Fade-in animations
     document.querySelectorAll(".mod_column").forEach(e => {
@@ -487,7 +533,7 @@ async function initUI() {
     window.onmouseup = e => {
         if (window.keyboard.linkedToTerm) window.term[window.currentTerm].term.focus();
     };
-    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX-UI v${electron.remote.app.getVersion()} - Electron v${process.versions.electron}`+"\033[0m");
+    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX-UI v${remote.app.getVersion()} - Electron v${process.versions.electron}`+"\033[0m");
 
     await _delay(100);
 
@@ -603,7 +649,7 @@ window.openSettings = async () => {
         if (th === window.settings.theme) return;
         themes += `<option>${th}</option>`;
     });
-    for (let i = 0; i < electron.remote.screen.getAllDisplays().length; i++) {
+    for (let i = 0; i < remote.screen.getAllDisplays().length; i++) {
         if (i !== window.settings.monitor) monitors += `<option>${i}</option>`;
     }
     let nets = await window.si.networkInterfaces();
@@ -616,7 +662,7 @@ window.openSettings = async () => {
 
     new Modal({
         type: "custom",
-        title: `Settings <i>(v${electron.remote.app.getVersion()})</i>`,
+        title: `Settings <i>(v${remote.app.getVersion()})</i>`,
         html: `<table id="settingsEditor">
                     <tr>
                         <th>Key</th>
@@ -780,12 +826,52 @@ window.openSettings = async () => {
                         </select></td>
                     </tr>
                     <tr>
-                        <td>experimentalGlobeFeatures</td>
-                        <td>Toggle experimental features for the network globe</td>
-                        <td><select id="settingsEditor-experimentalGlobeFeatures">
-                            <option>${window.settings.experimentalGlobeFeatures}</option>
-                            <option>${!window.settings.experimentalGlobeFeatures}</option>
+                        <td>showConninfo</td>
+                        <td>Show network traffic graphs (CPU intensive)</td>
+                        <td><select id="settingsEditor-showConninfo">
+                            <option>${window.settings.showConninfo || false}</option>
+                            <option>${!window.settings.showConninfo}</option>
                         </select></td>
+                    </tr>
+                    <tr>
+                        <td>showGlobe</td>
+                        <td>Show network globe (CPU intensive)</td>
+                        <td><select id="settingsEditor-showGlobe">
+                            <option>${window.settings.showGlobe || false}</option>
+                            <option>${!window.settings.showGlobe}</option>
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td>cpuinfoCharts</td>
+                        <td>Show CPU usage charts (CPU intensive)</td>
+                        <td><select id="settingsEditor-cpuinfoCharts">
+                            <option>${window.settings.cpuinfoCharts !== false}</option>
+                            <option>${window.settings.cpuinfoCharts === false}</option>
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td>toplistEnabled</td>
+                        <td>Show top processes list</td>
+                        <td><select id="settingsEditor-toplistEnabled">
+                            <option>${window.settings.toplistEnabled !== false}</option>
+                            <option>${window.settings.toplistEnabled === false}</option>
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td>ramwatcherPoints</td>
+                        <td>Show RAM visualization grid (memory intensive)</td>
+                        <td><select id="settingsEditor-ramwatcherPoints">
+                            <option>${window.settings.ramwatcherPoints !== false}</option>
+                            <option>${window.settings.ramwatcherPoints === false}</option>
+                        </select></td>
+                    </tr>
+                    <tr>
+                        // <td>experimentalGlobeFeatures</td>
+                        // <td>Toggle experimental features for the network globe</td>
+                        // <td><select id="settingsEditor-experimentalGlobeFeatures">
+                        //     <option>${window.settings.experimentalGlobeFeatures}</option>
+                        //     <option>${!window.settings.experimentalGlobeFeatures}</option>
+                        // </select></td>
                     </tr>
                     <tr>
                         <td>experimentalFeatures</td>
@@ -802,7 +888,7 @@ window.openSettings = async () => {
             {label: "Open in External Editor", action:`electron.shell.openPath('${settingsFile}');electronWin.minimize();`},
             {label: "Save to Disk", action: "window.writeSettingsFile()"},
             {label: "Reload UI", action: "window.location.reload(true);"},
-            {label: "Restart eDEX", action: "electron.remote.app.relaunch();electron.remote.app.quit();"}
+            {label: "Restart eDEX", action: "require('@electron/remote').app.relaunch();require('@electron/remote').app.quit();"}
         ]
     }, () => {
         // Link the keyboard back to the terminal
@@ -845,7 +931,12 @@ window.writeSettingsFile = () => {
         excludeThreadsFromToplist: (document.getElementById("settingsEditor-excludeThreadsFromToplist").value === "true"),
         hideDotfiles: (document.getElementById("settingsEditor-hideDotfiles").value === "true"),
         fsListView: (document.getElementById("settingsEditor-fsListView").value === "true"),
-        experimentalGlobeFeatures: (document.getElementById("settingsEditor-experimentalGlobeFeatures").value === "true"),
+        showConninfo: (document.getElementById("settingsEditor-showConninfo").value === "true"),
+        showGlobe: (document.getElementById("settingsEditor-showGlobe").value === "true"),
+        cpuinfoCharts: (document.getElementById("settingsEditor-cpuinfoCharts").value === "true"),
+        toplistEnabled: (document.getElementById("settingsEditor-toplistEnabled").value === "true"),
+        ramwatcherPoints: (document.getElementById("settingsEditor-ramwatcherPoints").value === "true"),
+        // experimentalGlobeFeatures: (document.getElementById("settingsEditor-experimentalGlobeFeatures").value === "true"),
         experimentalFeatures: (document.getElementById("settingsEditor-experimentalFeatures").value === "true")
     };
 
@@ -916,7 +1007,7 @@ window.openShortcutsHelp = () => {
     window.keyboard.detach();
     new Modal({
         type: "custom",
-        title: `Available Keyboard Shortcuts <i>(v${electron.remote.app.getVersion()})</i>`,
+        title: `Available Keyboard Shortcuts <i>(v${remote.app.getVersion()})</i>`,
         html: `<h5>Using either the on-screen or a physical keyboard, you can use the following shortcuts:</h5>
                 <details open id="shortcutsHelpAccordeon1">
                     <summary>Emulator shortcuts</summary>
@@ -1032,10 +1123,60 @@ window.useAppShortcut = action => {
             window.keyboard.togglePasswordMode();
             return true;
         case "DEV_DEBUG":
-            electron.remote.getCurrentWindow().webContents.toggleDevTools();
+            remote.getCurrentWindow().webContents.toggleDevTools();
             return true;
         case "DEV_RELOAD":
             window.location.reload(true);
+            return true;
+        case "TOGGLE_CONNINFO":
+            if (window.mods.conninfo) {
+                window.mods.conninfo.destroy();
+                window.mods.conninfo = null;
+                window.settings.showConninfo = false;
+            } else {
+                window.lazyLoadConninfo();
+                window.settings.showConninfo = true;
+            }
+            return true;
+        case "TOGGLE_GLOBE":
+            if (window.mods.globe) {
+                window.mods.globe.destroy();
+                window.mods.globe = null;
+                window.settings.showGlobe = false;
+            } else {
+                window.lazyLoadGlobe();
+                window.settings.showGlobe = true;
+            }
+            return true;
+        case "TOGGLE_CPUINFO":
+            if (window.mods.cpuinfo) {
+                window.mods.cpuinfo.destroy();
+                window.mods.cpuinfo = null;
+                window.settings.cpuinfoCharts = false;
+            } else {
+                window.lazyLoadCpuinfo();
+                window.settings.cpuinfoCharts = true;
+            }
+            return true;
+        case "TOGGLE_TOPLIST":
+            if (window.mods.toplist) {
+                window.mods.toplist.destroy();
+                window.mods.toplist = null;
+                window.settings.toplistEnabled = false;
+            } else {
+                window.lazyLoadToplist();
+                window.settings.toplistEnabled = true;
+            }
+            return true;
+        case "TOGGLE_RAMWATCHER":
+            if (window.mods.ramwatcher) {
+                window.mods.ramwatcher.destroy();
+                window.mods.ramwatcher = null;
+                window.settings.ramwatcherPoints = false;
+            } else {
+                window.lazyLoadRAMwatcher();
+                window.settings.ramwatcherPoints = true;
+            }
             return true;
         default:
             console.warn(`Unknown "${action}" app shortcut action`);
@@ -1044,7 +1185,7 @@ window.useAppShortcut = action => {
 };
 
 // Global keyboard shortcuts
-const globalShortcut = electron.remote.globalShortcut;
+const globalShortcut = remote.globalShortcut;
 globalShortcut.unregisterAll();
 
 window.registerKeyboardShortcuts = () => {
@@ -1106,7 +1247,7 @@ document.addEventListener("keydown", e => {
 // Fix #265
 window.addEventListener("keyup", e => {
     if (require("os").platform() === "win32" && e.key === "F4" && e.altKey === true) {
-        electron.remote.app.quit();
+        remote.app.quit();
     }
 });
 
@@ -1124,12 +1265,12 @@ window.onresize = () => {
 
 // See #413
 window.resizeTimeout = null;
-let electronWin = electron.remote.getCurrentWindow();
+let electronWin = remote.getCurrentWindow();
 electronWin.on("resize", () => {
     if (settings.keepGeometry === false) return;
     clearTimeout(window.resizeTimeout);
     window.resizeTimeout = setTimeout(() => {
-        let win = electron.remote.getCurrentWindow();
+        let win = remote.getCurrentWindow();
         if (win.isFullScreen()) return false;
         if (win.isMaximized()) {
             win.unmaximize();
@@ -1148,5 +1289,5 @@ electronWin.on("resize", () => {
 });
 
 electronWin.on("leave-full-screen", () => {
-    electron.remote.getCurrentWindow().setSize(960, 540);
+    remote.getCurrentWindow().setSize(960, 540);
 });

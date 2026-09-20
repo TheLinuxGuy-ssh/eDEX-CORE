@@ -17,7 +17,7 @@ process.on("uncaughtException", e => {
     process.exit(1);
 });
 
-signale.start(`Starting eDEX-UI v${app.getVersion()}`);
+signale.start(`Starting X-UI v${app.getVersion()}`);
 signale.info(`With Node ${process.versions.node} and Electron ${process.versions.electron}`);
 signale.info(`Renderer is Chrome ${process.versions.chrome}`);
 
@@ -92,6 +92,11 @@ if (!fs.existsSync(settingsFile)) {
         excludeThreadsFromToplist: true,
         hideDotfiles: false,
         fsListView: false,
+        showConninfo: false,
+        showGlobe: false,
+        cpuinfoCharts: true,
+        toplistEnabled: true,
+        ramwatcherPoints: true,
         experimentalGlobeFeatures: false,
         experimentalFeatures: false
     }, "", 4));
@@ -192,16 +197,18 @@ function createWindow(settings) {
         backgroundColor: '#000000',
         webPreferences: {
             devTools: true,
-	    enableRemoteModule: true,
             contextIsolation: false,
             backgroundThrottling: false,
             webSecurity: true,
             nodeIntegration: true,
             nodeIntegrationInSubFrames: false,
             allowRunningInsecureContent: false,
+            sandbox: false,
             experimentalFeatures: settings.experimentalFeatures || false
         }
     });
+
+    require("@electron/remote/main").enable(win.webContents);
 
     win.loadURL(url.format({
         pathname: path.join(__dirname, 'ui.html'),
@@ -348,9 +355,9 @@ app.on('ready', async () => {
 
 app.on('web-contents-created', (e, contents) => {
     // Prevent creating more than one window
-    contents.on('new-window', (e, url) => {
-        e.preventDefault();
+    contents.setWindowOpenHandler(({ url }) => {
         shell.openExternal(url);
+        return { action: "deny" };
     });
 
     // Prevent loading something else than the UI

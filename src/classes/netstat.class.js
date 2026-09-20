@@ -39,7 +39,7 @@ class Netstat {
         this.updateInfo();
         this.infoUpdater = setInterval(() => {
             this.updateInfo();
-        }, 2000);
+        }, 10000);
 
         // Init GeoIP integrated backend
         this.geoLookup = {
@@ -121,7 +121,7 @@ class Netstat {
                                 let ip = this.ipinfo.ip;
                                 document.querySelector("#mod_netstat_innercontainer > div:nth-child(2) > h2").innerHTML = window._escapeHtml(ip);
 
-                                this.runsBeforeGeoIPUpdate = 10;
+                                this.runsBeforeGeoIPUpdate = 20;
                             } catch(e) {
                                 this.failedAttempts[e] = (this.failedAttempts[e] || 0) + 1;
                                 if (this.failedAttempts[e] > 2) return false;
@@ -178,6 +178,11 @@ class Netstat {
                 reject(new Error("Socket timeout"));
             });
         });
+    }
+    destroy() {
+        if (this.infoUpdater) clearInterval(this.infoUpdater);
+        const el = document.getElementById("mod_netstat");
+        if (el) el.remove();
     }
 }
 

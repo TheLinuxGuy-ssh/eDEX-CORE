@@ -15,8 +15,11 @@ class Clock {
 
         this.updateClock();
         this.updater = setInterval(() => {
-            this.updateClock();
-        }, 1000);
+            let now = new Date();
+            if (now.getSeconds() !== this.lastTime.getSeconds()) {
+                this.updateClock();
+            }
+        }, 200);
     }
     updateClock() {
         let time = new Date();
@@ -46,6 +49,11 @@ class Clock {
 
         document.getElementById("mod_clock_text").innerHTML = clockString;
         this.lastTime = time;
+    }
+    destroy() {
+        if (this.updater) clearInterval(this.updater);
+        const el = document.getElementById("mod_clock");
+        if (el) el.remove();
     }
 }
 

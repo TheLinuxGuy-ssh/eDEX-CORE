@@ -26,7 +26,7 @@ class HardwareInspector {
         this.updateInfo();
         this.infoUpdater = setInterval(() => {
             this.updateInfo();
-        }, 20000);
+        }, 60000);
     }
     updateInfo() {
         window.si.system().then(d => {
@@ -43,6 +43,11 @@ class HardwareInspector {
 
             return !filters.includes(word);
         }).slice(0, 2).join(" ");
+    }
+    destroy() {
+        if (this.infoUpdater) clearInterval(this.infoUpdater);
+        const el = document.getElementById("mod_hardwareInspector");
+        if (el) el.remove();
     }
 }
 

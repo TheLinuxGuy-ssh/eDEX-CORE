@@ -24,7 +24,7 @@ class Conninfo {
 
         // Set chart options
         let chartOptions = [{
-            limitFPS: 40,
+            limitFPS: 5,
             responsive: true,
             millisPerPixel: 70,
             interpolation: 'linear',
@@ -41,7 +41,7 @@ class Conninfo {
                 precision: 2
             }
         }];
-        chartOptions.push(Object.assign({}, chartOptions[0]));  // Deep copy object, see http://jsben.ch/bWfk9
+        chartOptions.push(Object.assign({}, chartOptions[0]));
         chartOptions[0].minValue = 0;
         chartOptions[1].maxValue = 0;
 
@@ -59,7 +59,7 @@ class Conninfo {
         this.updateInfo();
         this.infoUpdater = setInterval(() => {
             this.updateInfo();
-        }, 1000);
+        }, 5000);
     }
     updateInfo() {
         let time = new Date().getTime();
@@ -88,6 +88,19 @@ class Conninfo {
                 this.current.innerText = "UP " + parseFloat(data[0].tx_sec/125000).toFixed(2) + " DOWN " + parseFloat(data[0].rx_sec/125000).toFixed(2);
             });
         }
+    }
+    destroy() {
+        if (this.infoUpdater) {
+            clearInterval(this.infoUpdater);
+            this.infoUpdater = null;
+        }
+        if (this.charts) {
+            this.charts.forEach(c => c.stop());
+            this.charts = null;
+        }
+        this.series = null;
+        const el = document.getElementById("mod_conninfo");
+        if (el) el.remove();
     }
 }
 

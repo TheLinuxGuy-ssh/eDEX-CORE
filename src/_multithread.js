@@ -6,8 +6,8 @@ if (cluster.isMaster) {
     const signale = require("signale");
     // Also, leave a core available for the renderer process
     const osCPUs = require("os").cpus().length - 1;
-    // See #904
-    const numCPUs = (osCPUs > 7) ? 7 : osCPUs;
+    // See #904 - reduced to 2 workers to minimize CPU overhead
+    const numCPUs = Math.min(2, osCPUs);
 
     const si = require("systeminformation");
 

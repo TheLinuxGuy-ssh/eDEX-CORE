@@ -44,7 +44,7 @@ class Sysinfo {
         this.updateBattery();
         this.batteryUpdater = setInterval(() => {
             this.updateBattery();
-        }, 3000);
+        }, 10000);
     }
     updateDate() {
         let time = new Date();
@@ -131,6 +131,12 @@ class Sysinfo {
                 indicator.innerHTML = "ON";
             }
         });
+    }
+    destroy() {
+        if (this.uptimeUpdater) clearInterval(this.uptimeUpdater);
+        if (this.batteryUpdater) clearInterval(this.batteryUpdater);
+        const el = document.getElementById("mod_sysinfo");
+        if (el) el.remove();
     }
 }
 

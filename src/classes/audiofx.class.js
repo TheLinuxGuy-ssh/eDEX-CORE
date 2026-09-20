@@ -9,13 +9,13 @@ class AudioManager {
                     src: [path.join(__dirname, "assets", "audio", "stdout.wav")],
                     volume: 0.4
                 });
-                this.stdin = new Howl({
-                    src: [path.join(__dirname, "assets", "audio", "stdin.wav")],
-                    volume: 0.4
-                });
-                this.folder = new Howl({
-                    src: [path.join(__dirname, "assets", "audio", "folder.wav")]
-                });
+                // this.stdin = new Howl({
+                //     src: [path.join(__dirname, "assets", "audio", "stdin.wav")],
+                //     volume: 0.4
+                // });
+                // this.folder = new Howl({
+                //     src: [path.join(__dirname, "assets", "audio", "folder.wav")]
+                // });
                 this.granted = new Howl({
                     src: [path.join(__dirname, "assets", "audio", "granted.wav")]
                 });

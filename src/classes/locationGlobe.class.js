@@ -234,6 +234,22 @@ class LocationGlobe {
             });
         });
     }
+    destroy() {
+        this._animate = null; // Stop animation loop
+        if (this.locUpdater) clearInterval(this.locUpdater);
+        if (this.connsUpdater) clearInterval(this.connsUpdater);
+        if (this.resizeHandler) window.removeEventListener("resize", this.resizeHandler);
+        if (this.globe) {
+            this.removeMarkers();
+            this.removePins();
+            this.conns.forEach(c => c.pin.remove());
+            this.conns = [];
+            if (this.globe.domElement) this.globe.domElement.remove();
+            this.globe = null;
+        }
+        const el = document.getElementById("mod_globe");
+        if (el) el.remove();
+    }
 }
 
 module.exports = {

@@ -64,7 +64,7 @@ class FilesystemDisplay {
                 this._runNextTick = false;
                 this.readFS(this.dirpath);
             }
-        }, 1000);
+        }, 2000);
 
         this._asyncFSwrapper = new Proxy(fs, {
             get: function(fs, prop) {
@@ -491,8 +491,8 @@ class FilesystemDisplay {
                 e.setAttribute("class", e.className.replace(" animationWait", ""));
 
                 if (window.settings.hideDotfiles !== true || e.className.indexOf("hidden") === -1) {
-                    window.audioManager.folder.play();
-                    await _delay(30);
+                    if (id % 3 === 0) window.audioManager.folder.play();
+                    await _delay(50);
                 }
 
                 id++;
