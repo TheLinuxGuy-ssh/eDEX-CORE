@@ -3,7 +3,7 @@ const {app, BrowserWindow, dialog, shell} = require("electron");
 
 process.on("uncaughtException", e => {
     signale.fatal(e);
-    dialog.showErrorBox("eDEX-UI crashed", e.message || "Cannot retrieve error message.");
+    dialog.showErrorBox("eDEX crashed", e.message || "Cannot retrieve error message.");
     if (tty) {
         tty.close();
     }
@@ -183,7 +183,7 @@ function createWindow(settings) {
     let {x, y, width, height} = display.bounds;
     width++; height++;
     win = new BrowserWindow({
-        title: "eDEX-UI",
+        title: "eDEX",
         x,
         y,
         width,
@@ -243,7 +243,7 @@ app.on('ready', async () => {
     Object.assign(cleanEnv, {
         TERM: "xterm-256color",
         COLORTERM: "truecolor",
-        TERM_PROGRAM: "eDEX-UI",
+        TERM_PROGRAM: "eDEX",
         TERM_PROGRAM_VERSION: app.getVersion()
     }, settings.env);
 
