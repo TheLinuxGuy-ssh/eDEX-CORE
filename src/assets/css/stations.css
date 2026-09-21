@@ -1,0 +1,281 @@
+/* Hyperfocus + workspace switch motion — Hyprland-style expo-out */
+:root {
+    --hf-duration: 620ms;
+    --hf-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --hf-ease-shell: cubic-bezier(0.19, 1, 0.22, 1);
+    --hf-panel-duration: 540ms;
+    --sw-duration: 320ms;
+    --sw-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --sw-ease-snappy: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --hf-duration: 90ms;
+        --hf-panel-duration: 80ms;
+        --sw-duration: 60ms;
+    }
+}
+
+/* ── Tab deck: one frame, flat hierarchy ── */
+#main_shell_tabdeck {
+    width: calc(100% + 1.48vh);
+    margin-left: -0.74vh;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-bottom: 0.1vh solid rgba(var(--color_r), var(--color_g), var(--color_b), 0.38);
+}
+
+ul#main_shell_stations {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    box-sizing: border-box;
+    border-bottom: none;
+    flex-direction: row;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+
+ul#main_shell_stations > li[data-station] {
+    cursor: pointer;
+    flex: 1;
+    text-align: center;
+    font-family: var(--font_main);
+    font-size: 1.02vh;
+    letter-spacing: 0.1vh;
+    padding: 0.58vh 0.2vh 0.48vh;
+    background: transparent;
+    transform: skewX(35deg);
+    box-sizing: border-box;
+    border-right: 0.07vh solid rgba(var(--color_r), var(--color_g), var(--color_b), 0.18);
+    transition:
+        background var(--sw-duration) var(--sw-ease-snappy),
+        color var(--sw-duration) var(--sw-ease-snappy),
+        opacity var(--sw-duration) var(--sw-ease-snappy),
+        box-shadow var(--sw-duration) var(--sw-ease-snappy);
+}
+
+ul#main_shell_stations > li[data-station]:last-of-type {
+    border-right: none;
+}
+
+ul#main_shell_stations > li[data-station] > span {
+    display: inline-block;
+    transform: skewX(-35deg);
+    font-weight: 600;
+}
+
+ul#main_shell_stations > li[data-station] > span > em {
+    font-style: normal;
+    opacity: 0.4;
+    margin-right: 0.35vh;
+    font-size: 0.82em;
+    letter-spacing: 0;
+}
+
+ul#main_shell_stations > li[data-station]:not(.active) {
+    opacity: 0.62;
+}
+
+ul#main_shell_stations > li[data-station].active {
+    background: rgba(var(--color_r), var(--color_g), var(--color_b), 0.14);
+    color: rgb(var(--color_r), var(--color_g), var(--color_b));
+    opacity: 1;
+    box-shadow: inset 0 -0.16vh 0 rgb(var(--color_r), var(--color_g), var(--color_b));
+}
+
+#main_shell_subtabs {
+    margin: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.18);
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: hidden;
+    max-height: 3.2vh;
+    opacity: 1;
+    transition:
+        max-height var(--sw-duration) var(--sw-ease),
+        opacity calc(var(--sw-duration) * 0.85) var(--sw-ease),
+        transform var(--sw-duration) var(--sw-ease);
+    transform: translate3d(0, 0, 0);
+}
+
+body.station-editor #main_shell_subtabs,
+body.station-browser #main_shell_subtabs {
+    max-height: 0;
+    opacity: 0;
+    transform: translate3d(0, -0.35vh, 0);
+    pointer-events: none;
+}
+
+#station_dev_badge {
+    display: none;
+    margin-left: 0.74vh;
+    padding: 0.2vh 0.6vh;
+    font-family: var(--font_main_light);
+    font-size: 0.85vh;
+    letter-spacing: 0.06vh;
+    border: 0.092vh solid rgba(var(--color_r), var(--color_g), var(--color_b), 0.45);
+    cursor: pointer;
+    transform: none;
+    flex: 0 1 auto;
+    background: transparent;
+}
+
+#station_loading_overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    font-family: var(--font_main_light);
+    font-size: 1.1vh;
+    letter-spacing: 0.25vh;
+    z-index: 5;
+    pointer-events: none;
+}
+
+#station_loading_overlay.visible {
+    display: flex;
+}
+
+#station_stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+body.station-editor div#main_shell_innercontainer pre,
+body.station-browser div#main_shell_innercontainer pre {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+body.station-terminal div#main_shell_innercontainer pre.active {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+div#main_shell_innercontainer {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
+    border: none;
+    margin: 0;
+}
+
+/* Smooth shell resize (matches hyperfocus timing) */
+section#main_shell {
+    transition:
+        width var(--hf-duration) var(--hf-ease-shell),
+        height var(--hf-duration) var(--hf-ease-shell);
+}
+
+section#filesystem,
+section#keyboard {
+    transition:
+        transform var(--hf-duration) var(--hf-ease),
+        opacity calc(var(--hf-duration) * 0.88) var(--hf-ease),
+        filter calc(var(--hf-duration) * 0.88) var(--hf-ease);
+}
+
+body.hyperfocus-animating section.mod_column {
+    transition:
+        transform var(--hf-panel-duration) var(--hf-ease),
+        opacity calc(var(--hf-panel-duration) * 0.82) var(--hf-ease),
+        filter calc(var(--hf-panel-duration) * 0.82) var(--hf-ease);
+}
+
+body.hyperfocus-animating section#main_shell,
+body.hyperfocus-animating section#filesystem,
+body.hyperfocus-animating section#keyboard {
+    will-change: transform, opacity, width, height, filter;
+}
+
+body.hyperfocus-animating:not(.mode-hyperfocus) section#mod_column_left,
+body.hyperfocus-animating:not(.mode-hyperfocus) section#mod_column_right {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    filter: blur(0);
+}
+
+body.hyperfocus-animating:not(.mode-hyperfocus) section#filesystem,
+body.hyperfocus-animating:not(.mode-hyperfocus) section#keyboard {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    filter: blur(0);
+}
+
+/* Hyperfocus — panels peel away, shell breathes outward, dock sinks */
+body.mode-hyperfocus section#mod_column_left {
+    transform: translate3d(calc(-100% - 2.5vh), 0, 0);
+    opacity: 0;
+    filter: blur(3px);
+    pointer-events: none;
+    transition-delay: 0ms;
+}
+
+body.mode-hyperfocus section#mod_column_right {
+    transform: translate3d(calc(100% + 2.5vh), 0, 0);
+    opacity: 0;
+    filter: blur(3px);
+    pointer-events: none;
+    transition-delay: 55ms;
+}
+
+body.mode-hyperfocus section#main_shell {
+    width: 96%;
+    height: 86%;
+    z-index: 2;
+}
+
+body.mode-hyperfocus section#filesystem {
+    transform: translate3d(0, calc(100% + 3vh), 0);
+    opacity: 0;
+    filter: blur(4px);
+    pointer-events: none;
+    transition-delay: 70ms;
+}
+
+body.mode-hyperfocus section#keyboard {
+    transform: translate3d(0, calc(100% + 3vh), 0);
+    opacity: 0;
+    filter: blur(4px);
+    pointer-events: none;
+    transition-delay: 110ms;
+}
+
+/* Staggered return when leaving hyperfocus */
+body.hyperfocus-animating:not(.mode-hyperfocus) section#mod_column_left {
+    transition-delay: 120ms;
+}
+
+body.hyperfocus-animating:not(.mode-hyperfocus) section#mod_column_right {
+    transition-delay: 70ms;
+}
+
+body.hyperfocus-animating:not(.mode-hyperfocus) section#filesystem {
+    transition-delay: 90ms;
+}
+
+body.hyperfocus-animating:not(.mode-hyperfocus) section#keyboard {
+    transition-delay: 50ms;
+}
+
+body.hyperfocus-animating:not(.mode-hyperfocus) section#main_shell {
+    transition-delay: 0ms;
+}

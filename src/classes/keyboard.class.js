@@ -7,11 +7,18 @@ class Keyboard {
         this.container = document.getElementById(opts.container);
 
         this.linkedToTerm = true;
+        this.stationInput = false;
         this.detach = () => {
             this.linkedToTerm = false;
+            this.stationInput = false;
         };
         this.attach = () => {
             this.linkedToTerm = true;
+            this.stationInput = false;
+        };
+        this.linkToStation = () => {
+            this.linkedToTerm = false;
+            this.stationInput = true;
         };
 
         // Set default keyboard properties
@@ -358,6 +365,8 @@ class Keyboard {
         });
     }
     pressKey(key) {
+        if (!window.uiReady) return;
+
         let cmd = key.dataset.cmd || "";
 
         // Keyboard shortcuts
@@ -395,6 +404,11 @@ class Keyboard {
         }
 
         if (shortcutsTriggered) return;
+
+        if (this.stationInput && window.session && window.session.station !== "terminal") {
+            require("electron").ipcRenderer.send("station-key-input", cmd);
+            return;
+        }
 
         // Modifiers
         if (this.container.dataset.isShiftOn === "true" && key.dataset.shift_cmd || this.container.dataset.isCapsLckOn === "true" && key.dataset.shift_cmd) cmd = key.dataset.shift_cmd;

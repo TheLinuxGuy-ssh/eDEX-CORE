@@ -1,6 +1,6 @@
 {
   "name": "edex-ui",
-  "productName": "eDEX",
+  "productName": "eDEX-CORE",
   "version": "2.2.8",
   "description": "A science fiction desktop running everywhere. Awesome.",
   "keywords": [
@@ -33,6 +33,7 @@
     "postbuild-windows": "rmdir /S /Q prebuild-src",
     "test": "rsync -a --info=progress2 src/ prebuild-src --exclude node_modules && node prebuild-minify.js && cd prebuild-src && npm install && snyk test && cd .. && rm -R prebuild-src",
     "init-file-icons": "git submodule update --init",
+    "setup:vscode": "bash scripts/setup-vscode-server.sh",
     "update-file-icons": "git submodule foreach git pull origin master && node file-icons-generator.js"
   },
   "repository": {

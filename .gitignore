@@ -39,6 +39,5 @@ jspm_packages
 # JetBrains IDE project folder (e.g. WebStorm)
 .idea
 
-dist
-prebuild-src
-src/node_modules
+# OpenVSCode Server bundle (npm run setup:vscode)
+vendor/

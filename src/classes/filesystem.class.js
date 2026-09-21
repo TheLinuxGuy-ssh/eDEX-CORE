@@ -99,6 +99,7 @@ class FilesystemDisplay {
             let num = window.currentTerm;
 
             window.term[num].oncwdchange = cwd => {
+                if (window.session) window.session.setCwd(cwd);
                 // See #501
                 if (this._noTracking) return false;
 
@@ -605,6 +606,10 @@ class FilesystemDisplay {
                     break;
                 default:
                     if (mime.charset(filetype) === "UTF-8") {
+                        if (window.stations && typeof window.stations.openEditorFile === "function") {
+                            window.stations.openEditorFile(block.path);
+                            break;
+                        }
                         fs.readFile(block.path, 'utf-8', (err, data) => {
                             if (err) {
                                 new Modal({

@@ -7,6 +7,8 @@ section#boot_screen {
     padding: 0vh;
     margin: 0vh;
     overflow: hidden;
+    z-index: 99999;
+    pointer-events: all;
 
     font-family: monospace;
     font-size: 1.4vh;
@@ -103,4 +105,14 @@ section#boot_screen h1.glitch::after {
 @keyframes derezzer_bottom {
     from {transform: translateY(-100%) translateX(1%);}
     to {transform: translateY(-100%) translateX(3%);}
+}
+
+/* Block clicks/typing until initUI finishes (boot screen may already be gone) */
+body.ui-booting::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 99998;
+    pointer-events: all;
+    cursor: wait;
 }

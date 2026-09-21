@@ -4,7 +4,7 @@
         <meta charset="utf-8" />
         <meta http-equiv="Content-Security-Policy" content="default-src file: 'unsafe-inline'; img-src file: data:; media-src file:; connect-src ws: file:">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>eDEX</title>
+        <title>eDEX-CORE</title>
 
         <!-- Load dependency css -->
         <link rel="stylesheet" href="node_modules/augmented-ui/augmented.css" />
@@ -17,6 +17,7 @@
         <link rel="stylesheet" href="assets/css/main_shell.css" />
         <link rel="stylesheet" href="assets/css/filesystem.css" />
         <link rel="stylesheet" href="assets/css/keyboard.css" />
+        <link rel="stylesheet" href="assets/css/stations.css" />
         <!-- Load secondary modules css -->
         <link rel="stylesheet" href="assets/css/mod_column.css" />
         <link rel="stylesheet" href="assets/css/mod_clock.css" />
@@ -46,6 +47,9 @@
         <!-- Load secondary modules classes -->
         <script src="classes/clock.class.js"></script>
         <script src="classes/sysinfo.class.js"></script>
+        <script src="classes/session.class.js"></script>
+        <script src="classes/stationController.class.js"></script>
+        <script src="classes/devServerWatcher.class.js"></script>
         <script src="classes/hardwareInspector.class.js"></script>
         <script src="classes/cpuinfo.class.js"></script>
         <script src="classes/netstat.class.js"></script>
@@ -57,7 +61,7 @@
         <!-- Load extra classes -->
         <script src="classes/audiofx.class.js"></script>
     </head>
-    <body class="solidBackground">
+    <body class="solidBackground ui-booting">
         <section id="boot_screen">
         </section>
 

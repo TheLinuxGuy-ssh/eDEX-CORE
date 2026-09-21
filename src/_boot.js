@@ -3,7 +3,7 @@ const {app, BrowserWindow, dialog, shell} = require("electron");
 
 process.on("uncaughtException", e => {
     signale.fatal(e);
-    dialog.showErrorBox("eDEX crashed", e.message || "Cannot retrieve error message.");
+    dialog.showErrorBox("eDEX-CORE crashed", e.message || "Cannot retrieve error message.");
     if (tty) {
         tty.close();
     }
@@ -17,13 +17,13 @@ process.on("uncaughtException", e => {
     process.exit(1);
 });
 
-signale.start(`Starting X-UI v${app.getVersion()}`);
+signale.start(`Starting eDEX-CORE v${app.getVersion()}`);
 signale.info(`With Node ${process.versions.node} and Electron ${process.versions.electron}`);
 signale.info(`Renderer is Chrome ${process.versions.chrome}`);
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-    signale.fatal("Error: Another instance of eDEX is already running. Cannot proceed.");
+    signale.fatal("Error: Another instance of eDEX-CORE is already running. Cannot proceed.");
     app.exit(1);
 }
 
@@ -37,12 +37,13 @@ const url = require("url");
 const fs = require("fs");
 const which = require("which");
 const Terminal = require("./classes/terminal.class.js").Terminal;
+const { StationHost } = require("./classes/stationHost.class.js");
 
 ipc.on("log", (e, type, content) => {
     signale[type](content);
 });
 
-var win, tty, extraTtys;
+var win, tty, extraTtys, stationHost;
 const settingsFile = path.join(electron.app.getPath("userData"), "settings.json");
 const shortcutsFile = path.join(electron.app.getPath("userData"), "shortcuts.json");
 const lastWindowStateFile = path.join(electron.app.getPath("userData"), "lastWindowState.json");
@@ -98,7 +99,10 @@ if (!fs.existsSync(settingsFile)) {
         toplistEnabled: true,
         ramwatcherPoints: true,
         experimentalGlobeFeatures: false,
-        experimentalFeatures: false
+        experimentalFeatures: false,
+        vscodePort: 9888,
+        openvscodeServerPath: "",
+        vscodeZoomFactor: 0
     }, "", 4));
     signale.info(`Default settings written to ${settingsFile}`);
 }
@@ -117,6 +121,14 @@ if (!fs.existsSync(shortcutsFile)) {
         { type: "app", trigger: "Ctrl+Shift+H", action: "FS_DOTFILES", enabled: true },
         { type: "app", trigger: "Ctrl+Shift+P", action: "KB_PASSMODE", enabled: true },
         { type: "app", trigger: "Ctrl+Shift+I", action: "DEV_DEBUG", enabled: false },
+        { type: "app", trigger: "Alt+1", action: "STATION_TERMINAL", enabled: true },
+        { type: "app", trigger: "Alt+2", action: "STATION_EDITOR", enabled: true },
+        { type: "app", trigger: "Alt+3", action: "STATION_BROWSER", enabled: true },
+        { type: "app", trigger: "Alt+]", action: "STATION_NEXT", enabled: true },
+        { type: "app", trigger: "Alt+[", action: "STATION_PREV", enabled: true },
+        { type: "app", trigger: "Alt+PageDown", action: "SESSION_NEXT", enabled: true },
+        { type: "app", trigger: "Alt+PageUp", action: "SESSION_PREV", enabled: true },
+        { type: "app", trigger: "Ctrl+Alt+H", action: "HYPERFOCUS", enabled: true },
         { type: "app", trigger: "Ctrl+Shift+F5", action: "DEV_RELOAD", enabled: true },
         { type: "shell", trigger: "Ctrl+Shift+Alt+Space", action: "neofetch", linebreak: true, enabled: false }
     ], "", 4));
@@ -183,7 +195,7 @@ function createWindow(settings) {
     let {x, y, width, height} = display.bounds;
     width++; height++;
     win = new BrowserWindow({
-        title: "eDEX",
+        title: "eDEX-CORE",
         x,
         y,
         width,
@@ -280,6 +292,35 @@ app.on('ready', async () => {
 
     createWindow(settings);
 
+    stationHost = new StationHost(win, path.join(__dirname, ".."), settings, cleanEnv);
+
+    ipc.on("station-hide", () => {
+        stationHost.hide();
+    });
+
+    ipc.on("station-set-bounds", (e, bounds) => {
+        stationHost.setBounds(bounds);
+    });
+
+    ipc.on("station-show-editor", async (e, cwd, filePath, bounds) => {
+        const result = await stationHost.showEditor(cwd || settings.cwd, filePath || null, bounds);
+        e.sender.send("station-show-editor-reply", result);
+    });
+
+    ipc.on("station-show-browser", (e, url, bounds) => {
+        const result = stationHost.showBrowser(url, bounds);
+        e.sender.send("station-show-browser-reply", result);
+    });
+
+    ipc.on("station-show-placeholder", (e, bounds) => {
+        const result = stationHost.showPlaceholder(bounds);
+        e.sender.send("station-show-browser-reply", result);
+    });
+
+    ipc.on("station-key-input", (e, cmd) => {
+        stationHost.injectKey(cmd);
+    });
+
     // Support for more terminals, used for creating tabs (currently limited to 4 extra terms)
     extraTtys = {};
     let basePort = settings.port || 3000;
@@ -353,6 +394,26 @@ app.on('ready', async () => {
     });
 });
 
+function isEmbeddedStationNavigation(url, currentUrl) {
+    try {
+        const target = new URL(url);
+        const settings = require(settingsFile);
+        const vscodePort = String(settings.vscodePort || 9888);
+
+        if (target.protocol === "http:"
+            && target.hostname === "127.0.0.1"
+            && target.port === vscodePort) {
+            return true;
+        }
+
+        if (!currentUrl || currentUrl === "about:blank") return false;
+        const current = new URL(currentUrl);
+        if (target.origin === current.origin) return true;
+        if (current.protocol === "data:" && target.protocol === "data:") return true;
+    } catch (e) {}
+    return false;
+}
+
 app.on('web-contents-created', (e, contents) => {
     // Prevent creating more than one window
     contents.setWindowOpenHandler(({ url }) => {
@@ -360,8 +421,9 @@ app.on('web-contents-created', (e, contents) => {
         return { action: "deny" };
     });
 
-    // Prevent loading something else than the UI
+    // Prevent leaving the eDEX UI — but allow embedded station navigations
     contents.on('will-navigate', (e, url) => {
+        if (isEmbeddedStationNavigation(url, contents.getURL())) return;
         if (url !== contents.getURL()) e.preventDefault();
     });
 });
@@ -372,6 +434,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+    if (stationHost) stationHost.destroy();
     tty.close();
     Object.keys(extraTtys).forEach(key => {
         if (extraTtys[key] !== null) {

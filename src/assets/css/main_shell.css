@@ -11,11 +11,9 @@ section#main_shell {
 
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: flex-start;
     overflow: hidden;
-
-    transition: width .5s cubic-bezier(0.85, 0.5, 0.85, 0.5), height .5s cubic-bezier(0.85, 0.5, 0.85, 0.5);
 }
 
 h1#main_shell_greeting {
@@ -31,33 +29,18 @@ h1#main_shell_greeting > em {
     font-weight: bold;
 }
 
-section#main_shell > h3.title {
-    top: 0.74vh;
-    left: 16.5vw;
-    width: 66%;
-    transition: opacity .5s cubic-bezier(0.4, 0, 1, 1) .5s;
-}
-
-section#main_shell > h3.title > p {
-    width: 49.8%;
-}
-
 ul#main_shell_tabs {
     margin: 0;
-    margin-top: -0.70vh;
-    margin-left: -0.74vh;
-    padding: 0;
-    width: calc(100% + 1.48vh);
+    padding: 0 0.4vh;
+    width: 100%;
     display: flex;
     box-sizing: border-box;
-    border-bottom: 0.18vh solid rgba(var(--color_r), var(--color_g), var(--color_b), 0.5);
-    border-top-left-radius: 0.278vh;
-    border-top-right-radius: 0.278vh;
+    border-bottom: none;
     flex-direction: row;
-    align-items: center;
-    justify-content: space-evenly;
+    align-items: stretch;
     flex-wrap: nowrap;
     overflow: hidden;
+    min-height: 2.1vh;
 }
 
 ul#main_shell_tabs > li {
@@ -65,29 +48,45 @@ ul#main_shell_tabs > li {
     display: block;
     font-family: var(--font_main);
     font-weight: normal;
+    font-size: 0.95vh;
+    letter-spacing: 0.04vh;
     width: 100%;
-    padding-top: 0.7vh;
-    padding-bottom: 0.4vh;
+    padding: 0.48vh 0.2vh 0.42vh;
     text-align: center;
     box-sizing: border-box;
-
-    background: var(--color_light_black);
-    transform: skewX(35deg);
+    background: transparent;
+    transform: skewX(30deg);
+    transition:
+        background var(--sw-duration) var(--sw-ease-snappy),
+        color var(--sw-duration) var(--sw-ease-snappy),
+        opacity var(--sw-duration) var(--sw-ease-snappy),
+        box-shadow var(--sw-duration) var(--sw-ease-snappy);
 }
+
 ul#main_shell_tabs > li > p {
     margin: 0;
-    transform: skewX(-35deg);
+    transform: skewX(-30deg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
 ul#main_shell_tabs > li:not(:first-child) {
-    border-left: 0.18vh solid rgba(var(--color_r), var(--color_g), var(--color_b), 0.5);
+    border-left: 0.07vh solid rgba(var(--color_r), var(--color_g), var(--color_b), 0.16);
+}
+
+ul#main_shell_tabs > li:not(.active) {
+    opacity: 0.58;
 }
 
 ul#main_shell_tabs > li.active {
-    background: rgb(var(--color_r), var(--color_g), var(--color_b));
-    color: var(--color_light_black);
+    background: rgba(var(--color_r), var(--color_g), var(--color_b), 0.12);
+    color: rgb(var(--color_r), var(--color_g), var(--color_b));
     font-weight: bold;
-    transform: skewX(35deg) scale(1.2);
-    z-index: -1;
+    transform: skewX(30deg);
+    z-index: 1;
+    opacity: 1;
+    box-shadow: inset 0 -0.12vh 0 rgb(var(--color_r), var(--color_g), var(--color_b));
 }
 
 div#main_shell_innercontainer, div#main_shell_innercontainer pre {
@@ -101,11 +100,33 @@ div#main_shell_innercontainer pre {
     z-index: -999;
     opacity: 0;
     position: relative;
+    transition:
+        opacity calc(var(--sw-duration) * 0.8) var(--sw-ease-snappy),
+        filter calc(var(--sw-duration) * 0.8) var(--sw-ease-snappy);
+    filter: blur(1px);
 }
 
 div#main_shell_innercontainer pre.active {
     z-index: inherit;
     opacity: 1;
+    filter: blur(0);
+}
+
+body.session-switching div#main_shell_innercontainer pre.active {
+    animation: sessionFocusIn var(--sw-duration) var(--sw-ease-snappy);
+}
+
+@keyframes sessionFocusIn {
+    from {
+        opacity: 0.35;
+        filter: blur(2px);
+        transform: translate3d(0, 0.25vh, 0);
+    }
+    to {
+        opacity: 1;
+        filter: blur(0);
+        transform: translate3d(0, 0, 0);
+    }
 }
 
 div#main_shell_innercontainer pre#terminal1 {

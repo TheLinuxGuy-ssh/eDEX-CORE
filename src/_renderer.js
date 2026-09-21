@@ -53,6 +53,22 @@ window.settings = require(settingsFile);
 window.shortcuts = require(shortcutsFile);
 window.lastWindowState = require(lastWindowStateFile);
 
+const stationShortcutDefaults = [
+    { type: "app", trigger: "Alt+1", action: "STATION_TERMINAL", enabled: true },
+    { type: "app", trigger: "Alt+2", action: "STATION_EDITOR", enabled: true },
+    { type: "app", trigger: "Alt+3", action: "STATION_BROWSER", enabled: true },
+    { type: "app", trigger: "Alt+]", action: "STATION_NEXT", enabled: true },
+    { type: "app", trigger: "Alt+[", action: "STATION_PREV", enabled: true },
+    { type: "app", trigger: "Alt+PageDown", action: "SESSION_NEXT", enabled: true },
+    { type: "app", trigger: "Alt+PageUp", action: "SESSION_PREV", enabled: true },
+    { type: "app", trigger: "Ctrl+Alt+H", action: "HYPERFOCUS", enabled: true }
+];
+stationShortcutDefaults.forEach(def => {
+    if (!window.shortcuts.some(cut => cut.action === def.action)) {
+        window.shortcuts.push(def);
+    }
+});
+
 // Load CLI parameters
 if (remote.process.argv.includes("--nointro")) {
     window.settings.nointroOverride = true;
@@ -202,6 +218,21 @@ function initSystemInformationProxy() {
 
 // Init audio
 window.audioManager = new AudioManager();
+window.uiReady = false;
+
+window.finishUiBoot = () => {
+    document.body.classList.remove("ui-booting");
+    window.uiReady = true;
+    if (typeof window.registerKeyboardShortcuts === "function") {
+        window.registerKeyboardShortcuts();
+    }
+    requestAnimationFrame(() => {
+        if (window.stations) window.stations._fitTerminal();
+        if (window.stations && window.session && window.session.station !== "terminal") {
+            window.stations._scheduleBoundsSync();
+        }
+    });
+};
 
 // See #223
 remote.app.focus();
@@ -211,7 +242,8 @@ if (window.settings.nointro || window.settings.nointroOverride) {
     initGraphicalErrorHandling();
     initSystemInformationProxy();
     document.getElementById("boot_screen").remove();
-    document.body.setAttribute("class", "");
+    document.body.classList.remove("solidBackground");
+    document.body.classList.add("ui-booting");
     waitForFonts().then(initUI);
 } else {
     displayLine();
@@ -286,14 +318,14 @@ async function displayTitleScreen() {
 
     await _delay(400);
 
-    document.body.setAttribute("class", "");
+    document.body.classList.remove("solidBackground");
     bootScreen.setAttribute("class", "center");
     bootScreen.innerHTML = "<h1>eDEX</h1>";
     let title = document.querySelector("section > h1");
 
     await _delay(200);
 
-    document.body.setAttribute("class", "solidBackground");
+    document.body.classList.add("solidBackground");
 
     await _delay(100);
 
@@ -310,7 +342,7 @@ async function displayTitleScreen() {
 
     await _delay(500);
 
-    document.body.setAttribute("class", "");
+    document.body.classList.remove("solidBackground");
     title.setAttribute("class", "");
     title.setAttribute("style", `border: 5px solid rgb(${window.theme.r}, ${window.theme.g}, ${window.theme.b});`);
 
@@ -346,7 +378,6 @@ async function initUI() {
         <h3 class="title"><p>PANEL</p><p>SYSTEM</p></h3>
     </section>
     <section id="main_shell" style="height:0%;width:0%;opacity:0;margin-bottom:30vh;" augmented-ui="bl-clip tr-clip exe">
-        <h3 class="title" style="opacity:0;"><p>TERMINAL</p><p>MAIN SHELL</p></h3>
         <h1 id="main_shell_greeting"></h1>
     </section>
     <section class="mod_column" id="mod_column_right">
@@ -361,7 +392,6 @@ async function initUI() {
     await _delay(500);
 
     document.getElementById("main_shell").setAttribute("style", "margin-bottom: 30vh;");
-    document.querySelector("#main_shell > h3.title").setAttribute("style", "");
 
     await _delay(700);
 
@@ -504,19 +534,32 @@ async function initUI() {
     // Initialize the terminal
     let shellContainer = document.getElementById("main_shell");
     shellContainer.innerHTML += `
-        <ul id="main_shell_tabs">
-            <li id="shell_tab0" onclick="window.focusShellTab(0);" class="active"><p>MAIN SHELL</p></li>
-            <li id="shell_tab1" onclick="window.focusShellTab(1);"><p>EMPTY</p></li>
-            <li id="shell_tab2" onclick="window.focusShellTab(2);"><p>EMPTY</p></li>
-            <li id="shell_tab3" onclick="window.focusShellTab(3);"><p>EMPTY</p></li>
-            <li id="shell_tab4" onclick="window.focusShellTab(4);"><p>EMPTY</p></li>
-        </ul>
-        <div id="main_shell_innercontainer">
-            <pre id="terminal0" class="active"></pre>
-            <pre id="terminal1"></pre>
-            <pre id="terminal2"></pre>
-            <pre id="terminal3"></pre>
-            <pre id="terminal4"></pre>
+        <div id="main_shell_tabdeck">
+            <ul id="main_shell_stations">
+                <li data-station="terminal" class="active"><span><em>1</em>TERM</span></li>
+                <li data-station="editor"><span><em>2</em>EDIT</span></li>
+                <li data-station="browser"><span><em>3</em>WEB</span></li>
+                <li id="station_dev_badge"></li>
+            </ul>
+            <div id="main_shell_subtabs">
+                <ul id="main_shell_tabs">
+                    <li id="shell_tab0" onclick="window.focusShellTab(0);" class="active"><p>MAIN SHELL</p></li>
+                    <li id="shell_tab1" onclick="window.focusShellTab(1);"><p>EMPTY</p></li>
+                    <li id="shell_tab2" onclick="window.focusShellTab(2);"><p>EMPTY</p></li>
+                    <li id="shell_tab3" onclick="window.focusShellTab(3);"><p>EMPTY</p></li>
+                    <li id="shell_tab4" onclick="window.focusShellTab(4);"><p>EMPTY</p></li>
+                </ul>
+            </div>
+        </div>
+        <div id="station_stage">
+            <div id="main_shell_innercontainer">
+                <pre id="terminal0" class="active"></pre>
+                <pre id="terminal1"></pre>
+                <pre id="terminal2"></pre>
+                <pre id="terminal3"></pre>
+                <pre id="terminal4"></pre>
+                <div id="station_loading_overlay">INITIALIZING EDITOR CORE…</div>
+            </div>
         </div>`;
     window.term = {
         0: new Terminal({
@@ -531,9 +574,32 @@ async function initUI() {
     };
     // Prevent losing hardware keyboard focus on the terminal when using touch keyboard
     window.onmouseup = e => {
+        if (!window.uiReady) return;
         if (window.keyboard.linkedToTerm) window.term[window.currentTerm].term.focus();
     };
-    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX v${remote.app.getVersion()} - Electron v${process.versions.electron}`+"\033[0m");
+    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX-CORE v${remote.app.getVersion()} - Electron v${process.versions.electron}`+"\033[0m");
+
+    window.session = new Session();
+    window.stations = new StationController();
+
+    ipc.on("station-editor-navigate", (e, url) => {
+        if (!window.session || typeof url !== "string") return;
+        try {
+            const folder = new URL(url).searchParams.get("folder");
+            if (!folder) return;
+            let resolved = decodeURIComponent(folder);
+            if (resolved.startsWith("vscode-remote://")) {
+                resolved = decodeURIComponent(new URL(resolved).pathname);
+            } else {
+                resolved = path.resolve(resolved);
+            }
+            window.session.setCwd(resolved);
+        } catch (err) {}
+    });
+
+    window.devServerWatcher = new DevServerWatcher();
+    window.devServerWatcher.watch(window.term[0]);
+    if (window.term[0].cwd) window.session.setCwd(window.term[0].cwd);
 
     await _delay(100);
 
@@ -553,6 +619,7 @@ async function initUI() {
     await _delay(200);
 
     window.updateCheck = new UpdateChecker();
+    window.finishUiBoot();
 }
 
 window.themeChanger = theme => {
@@ -572,9 +639,17 @@ window.remakeKeyboard = layout => {
 };
 
 window.focusShellTab = number => {
+    if (!window.uiReady) return;
+
     window.audioManager.folder.play();
 
     if (number !== window.currentTerm && window.term[number]) {
+        document.body.classList.add("session-switching");
+        clearTimeout(window._sessionSwitchTimer);
+        window._sessionSwitchTimer = setTimeout(() => {
+            document.body.classList.remove("session-switching");
+        }, 320);
+
         window.currentTerm = number;
 
         document.querySelectorAll(`ul#main_shell_tabs > li:not(:nth-child(${number+1}))`).forEach(e => {
@@ -592,6 +667,7 @@ window.focusShellTab = number => {
         window.term[number].resendCWD();
 
         window.fsDisp.followTab();
+        requestAnimationFrame(() => window.term[number].fit());
     } else if (number > 0 && number <= 4 && window.term[number] !== null && typeof window.term[number] !== "object") {
         window.term[number] = null;
 
@@ -621,6 +697,8 @@ window.focusShellTab = number => {
                 window.term[number].onprocesschange = p => {
                     document.getElementById("shell_tab"+number).innerHTML = `<p>#${number+1} - ${p}</p>`;
                 };
+
+                if (window.devServerWatcher) window.devServerWatcher.watch(window.term[number]);
 
                 document.getElementById("shell_tab"+number).innerHTML = `<p>::${port}</p>`;
                 setTimeout(() => {
@@ -977,7 +1055,15 @@ window.openShortcutsHelp = () => {
         "FS_DOTFILES": "Toggle hidden files and directories in the file browser.",
         "KB_PASSMODE": "Toggle the on-screen keyboard's \"Password Mode\", which allows you to safely<br>type sensitive information even if your screen might be recorded (disable visual input feedback).",
         "DEV_DEBUG": "Open Chromium Dev Tools, for debugging purposes.",
-        "DEV_RELOAD": "Trigger front-end hot reload."
+        "DEV_RELOAD": "Trigger front-end hot reload.",
+        "STATION_EDITOR": "Switch to workspace slot 2 — EDIT <em>(Alt+2)</em>.",
+        "STATION_BROWSER": "Switch to workspace slot 3 — WEB <em>(Alt+3)</em>.",
+        "STATION_TERMINAL": "Switch to workspace slot 1 — TERM <em>(Alt+1)</em>.",
+        "STATION_NEXT": "Next workspace slot <em>(Alt+])</em>.",
+        "STATION_PREV": "Previous workspace slot <em>(Alt+[)</em>.",
+        "SESSION_NEXT": "Next terminal session tab <em>(Alt+PageDown)</em>.",
+        "SESSION_PREV": "Previous terminal session tab <em>(Alt+PageUp)</em>.",
+        "HYPERFOCUS": "Temporarily hide side panels and bottom deck for maximum workspace <em>(Ctrl+Alt+H)</em>."
     };
 
     let appList = "";
@@ -1055,6 +1141,8 @@ window.openShortcutsHelp = () => {
 };
 
 window.useAppShortcut = action => {
+    if (!window.uiReady) return false;
+
     switch(action) {
         case "COPY":
             window.term[window.currentTerm].clipboard.copy();
@@ -1128,6 +1216,40 @@ window.useAppShortcut = action => {
         case "DEV_RELOAD":
             window.location.reload(true);
             return true;
+        case "STATION_EDITOR":
+            window.stations.setStation("editor");
+            return true;
+        case "STATION_BROWSER":
+            window.stations.setStation("browser");
+            return true;
+        case "STATION_TERMINAL":
+            window.stations.setStation("terminal");
+            return true;
+        case "STATION_NEXT":
+            window.stations.cycleWorkspace(1);
+            return true;
+        case "STATION_PREV":
+            window.stations.cycleWorkspace(-1);
+            return true;
+        case "SESSION_NEXT":
+            if (window.session.station !== "terminal") {
+                window.stations.setStation("terminal");
+                setTimeout(() => window.useAppShortcut("NEXT_TAB"), 120);
+            } else {
+                window.useAppShortcut("NEXT_TAB");
+            }
+            return true;
+        case "SESSION_PREV":
+            if (window.session.station !== "terminal") {
+                window.stations.setStation("terminal");
+                setTimeout(() => window.useAppShortcut("PREVIOUS_TAB"), 120);
+            } else {
+                window.useAppShortcut("PREVIOUS_TAB");
+            }
+            return true;
+        case "HYPERFOCUS":
+            window.stations.toggleHyperfocus();
+            return true;
         case "TOGGLE_CONNINFO":
             if (window.mods.conninfo) {
                 window.mods.conninfo.destroy();
@@ -1189,6 +1311,9 @@ const globalShortcut = remote.globalShortcut;
 globalShortcut.unregisterAll();
 
 window.registerKeyboardShortcuts = () => {
+    if (!window.uiReady) return;
+
+    globalShortcut.unregisterAll();
     window.shortcuts.forEach(cut => {
         if (!cut.enabled) return;
 
@@ -1213,15 +1338,23 @@ window.registerKeyboardShortcuts = () => {
             console.warn(`${cut.trigger} has unknown type`);
         }
     });
+    if (window.session && window.session.hyperfocus) {
+        globalShortcut.register("Escape", () => {
+            if (window.session && window.session.hyperfocus) {
+                window.stations.toggleHyperfocus();
+            }
+        });
+    }
 };
-window.registerKeyboardShortcuts();
+// Keyboard shortcuts are registered when initUI completes (see finishUiBoot)
 
-// See #361
+// See #361 — keep shortcuts when embedded BrowserView steals renderer focus
 window.addEventListener("focus", () => {
-    window.registerKeyboardShortcuts();
+    if (window.uiReady) window.registerKeyboardShortcuts();
 });
 
 window.addEventListener("blur", () => {
+    if (remote.getCurrentWindow().isFocused()) return;
     globalShortcut.unregisterAll();
 });
 

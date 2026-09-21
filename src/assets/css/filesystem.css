@@ -9,9 +9,13 @@ section#filesystem {
     transition: opacity .5s cubic-bezier(0.4, 0, 1, 1);
 }
 
-section#filesystem > h3.title {
+section#filesystem > h3.title:first-child {
+    position: absolute;
+    top: 0.74vh;
+    left: 0;
     width: 43vw;
     padding-right: 0;
+    z-index: 2;
 }
 
 section#filesystem.hideDotfiles > h3.title > p#fs_disp_title_dir::before {

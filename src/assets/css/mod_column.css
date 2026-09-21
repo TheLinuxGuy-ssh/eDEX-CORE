@@ -19,9 +19,11 @@ section.mod_column.activated {
     opacity: 1;
 }
 
-section.mod_column > h3.title {
+section.mod_column > h3.title:first-child {
+    position: absolute;
     top: 0.74vh;
     width: 14.8%;
+    z-index: 2;
 }
 
 section.mod_column > div {
