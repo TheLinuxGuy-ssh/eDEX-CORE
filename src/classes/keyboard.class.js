@@ -15,10 +15,14 @@ class Keyboard {
         this.attach = () => {
             this.linkedToTerm = true;
             this.stationInput = false;
+            require("electron").ipcRenderer.send("station-input-forward", false);
         };
         this.linkToStation = () => {
             this.linkedToTerm = false;
             this.stationInput = true;
+            if (window.session && window.session.station !== "terminal") {
+                require("electron").ipcRenderer.send("station-input-forward", true);
+            }
         };
 
         // Set default keyboard properties
@@ -405,11 +409,6 @@ class Keyboard {
 
         if (shortcutsTriggered) return;
 
-        if (this.stationInput && window.session && window.session.station !== "terminal") {
-            require("electron").ipcRenderer.send("station-key-input", cmd);
-            return;
-        }
-
         // Modifiers
         if (this.container.dataset.isShiftOn === "true" && key.dataset.shift_cmd || this.container.dataset.isCapsLckOn === "true" && key.dataset.shift_cmd) cmd = key.dataset.shift_cmd;
         if (this.container.dataset.isCapsLckOn === "true" && key.dataset.capslck_cmd) cmd = key.dataset.capslck_cmd;
@@ -528,6 +527,16 @@ class Keyboard {
             }
         }
 
+
+        if (this.stationInput && window.session && window.session.station !== "terminal") {
+            require("electron").ipcRenderer.send("station-key-input", {
+                cmd,
+                ctrl: this.container.dataset.isCtrlOn === "true",
+                shift: this.container.dataset.isShiftOn === "true",
+                alt: this.container.dataset.isAltOn === "true"
+            });
+            return true;
+        }
 
         if (cmd === "\n") {
             if (window.keyboard.linkedToTerm) {

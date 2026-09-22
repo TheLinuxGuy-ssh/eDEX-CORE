@@ -10,12 +10,14 @@ const BROWSER_PLACEHOLDER_HTML = `<!DOCTYPE html>
   body { display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; box-sizing: border-box; }
   h1 { margin: 0 0 12px; font-size: 13px; letter-spacing: 0.35em; font-weight: 600; color: #6cf; }
   p { margin: 0; max-width: 460px; line-height: 1.65; font-size: 12px; opacity: 0.72; }
+  code { color: #6cf; }
 </style>
 </head>
 <body>
   <div>
     <h1>PREVIEW STATION</h1>
-    <p>Start a dev server in the terminal. When it prints a localhost URL, eDEX will detect it and load the preview here automatically.</p>
+    <p>Start a dev server in the terminal (e.g. <code>npm run dev</code>). When it prints a localhost URL, eDEX detects it and loads the preview here.</p>
+    <p style="margin-top: 14px; opacity: 0.55;">Switch to TERM, start your server, then return to WEB — or click the PREVIEW badge when it appears.</p>
   </div>
 </body>
 </html>`;
@@ -30,6 +32,95 @@ class StationHost {
         this.visible = false;
         this._surface = null;
         this._lastBounds = null;
+        this._forwardInput = false;
+        this._bindWindowInputForwarding();
+    }
+    setInputForward(enabled) {
+        this._forwardInput = !!enabled;
+        if (enabled && this.visible && this.view) {
+            this.focusEmbedded();
+        }
+    }
+    focusEmbedded() {
+        if (!this.view || !this.visible) return;
+        if (typeof this.win.setTopBrowserView === "function") {
+            this.win.setTopBrowserView(this.view);
+        }
+        if (!this.win.isFocused()) this.win.focus();
+        this.view.webContents.focus();
+    }
+    _bindWindowInputForwarding() {
+        if (this._inputForwardingBound || !this.win) return;
+        this._inputForwardingBound = true;
+        this.win.webContents.on("before-input-event", (event, input) => {
+            if (!this._forwardInput || !this.visible || !this.view) return;
+            if (input.type === "mouseDown" || input.type === "mouseUp" || input.type === "mouseMove"
+                || input.type === "mouseWheel" || input.type === "contextMenu") {
+                return;
+            }
+            this.focusEmbedded();
+            this._sendInput(input);
+            event.preventDefault();
+        });
+    }
+    _electronKeyCode(data) {
+        const named = {
+            Enter: "Enter",
+            Backspace: "Backspace",
+            Tab: "Tab",
+            Escape: "Escape",
+            ArrowUp: "Up",
+            ArrowDown: "Down",
+            ArrowLeft: "Left",
+            ArrowRight: "Right",
+            Delete: "Delete",
+            Home: "Home",
+            End: "End",
+            PageUp: "PageUp",
+            PageDown: "PageDown",
+            " ": "Space"
+        };
+        if (data.key && named[data.key]) return named[data.key];
+        if (data.code && data.code.startsWith("Key")) return data.code.slice(3).toLowerCase();
+        if (data.code && data.code.startsWith("Digit")) return data.code.slice(5);
+        if (data.key && data.key.length === 1) return data.key;
+        return data.key || "Unidentified";
+    }
+    _modifiersFrom(data) {
+        const modifiers = [];
+        if (data.ctrlKey || data.control) modifiers.push("control");
+        if (data.shiftKey || data.shift) modifiers.push("shift");
+        if (data.altKey || data.alt) modifiers.push("alt");
+        if (data.metaKey || data.meta) modifiers.push("meta");
+        return modifiers;
+    }
+    _sendInput(input) {
+        if (!this.view || !this.visible) return;
+        const wc = this.view.webContents;
+        const modifiers = this._modifiersFrom(input);
+        const keyCode = input.keyCode || this._electronKeyCode(input);
+
+        if (input.type === "char" && input.key && input.key.length === 1) {
+            wc.sendInputEvent({ type: "char", keyCode: input.key, modifiers });
+            return;
+        }
+
+        if (input.type === "keyDown" || input.type === "rawKeyDown") {
+            wc.sendInputEvent({ type: "rawKeyDown", keyCode, modifiers });
+            if (input.key && input.key.length === 1 && !modifiers.includes("control") && !modifiers.includes("alt") && !modifiers.includes("meta")) {
+                wc.sendInputEvent({ type: "char", keyCode: input.key, modifiers });
+            }
+            return;
+        }
+
+        if (input.type === "keyUp") {
+            wc.sendInputEvent({ type: "keyUp", keyCode, modifiers });
+        }
+    }
+    injectKeyboardEvent(data) {
+        if (!this.view || !this.visible || !data) return;
+        this.focusEmbedded();
+        this._sendInput(data);
     }
     _resolveEditorZoom(bounds) {
         const manual = Number(this.settings.vscodeZoomFactor);
@@ -67,7 +158,8 @@ class StationHost {
                 nodeIntegration: false,
                 contextIsolation: true,
                 sandbox: false,
-                webSecurity: true
+                webSecurity: true,
+                backgroundThrottling: false
             }
         });
         this.view.setBackgroundColor("#000000");
@@ -79,6 +171,7 @@ class StationHost {
             if (this._surface === "editor") {
                 this._applySurfaceZoom(this._lastBounds);
             }
+            if (this._forwardInput) this.focusEmbedded();
         });
         this.view.webContents.on("did-navigate", (e, url) => {
             this.currentUrl = url;
@@ -96,6 +189,7 @@ class StationHost {
     }
     _attach(url, bounds, surface) {
         const view = this._ensureView();
+        const previousSurface = this._surface;
         this._surface = surface || "browser";
         if (bounds && bounds.width > 0 && bounds.height > 0) {
             this._lastBounds = bounds;
@@ -110,7 +204,7 @@ class StationHost {
         if (bounds && bounds.width > 0 && bounds.height > 0) {
             this.setBounds(bounds);
         }
-        if (url && url !== this.currentUrl) {
+        if (url && (url !== this.currentUrl || previousSurface !== this._surface)) {
             view.webContents.loadURL(url);
             this.currentUrl = url;
         }
@@ -119,60 +213,104 @@ class StationHost {
         } else {
             this._applySurfaceZoom(bounds);
         }
-        view.webContents.focus();
+        if (this._surface === "editor" || this._surface === "browser") {
+            this._forwardInput = true;
+        }
+        this.focusEmbedded();
         return view;
     }
-    injectKey(cmd) {
-        if (!this.view || !this.visible || typeof cmd !== "string" || !cmd.length) return;
-        const wc = this.view.webContents;
-        const sendKey = keyCode => {
-            wc.sendInputEvent({ type: "keyDown", keyCode });
-            wc.sendInputEvent({ type: "keyUp", keyCode });
-        };
-        if (cmd.length === 1) {
-            const code = cmd.charCodeAt(0);
-            if (code >= 32 && code !== 127) {
-                wc.sendInputEvent({ type: "char", keyCode: cmd });
-                return;
-            }
+    injectKey(payload) {
+        if (!this.view || !this.visible) return;
+
+        let cmd = "";
+        let ctrl = false;
+        let shift = false;
+        let alt = false;
+
+        if (typeof payload === "string") {
+            cmd = payload;
+        } else if (payload && typeof payload === "object") {
+            cmd = payload.cmd || "";
+            ctrl = !!payload.ctrl;
+            shift = !!payload.shift;
+            alt = !!payload.alt;
         }
+        if (!cmd.length) return;
+
+        this.focusEmbedded();
+        const wc = this.view.webContents;
+        const modifiers = [];
+        if (ctrl) modifiers.push("control");
+        if (shift) modifiers.push("shift");
+        if (alt) modifiers.push("alt");
+
+        const tap = (type, keyCode, extraMods = []) => {
+            const mods = [...modifiers, ...extraMods];
+            wc.sendInputEvent({ type, keyCode, modifiers: mods });
+        };
+
         switch (cmd) {
             case "\r":
             case "\n":
-                sendKey("Enter");
-                break;
+                tap("rawKeyDown", "Enter");
+                tap("keyUp", "Enter");
+                return;
             case "\b":
-                sendKey("Backspace");
-                break;
+                tap("rawKeyDown", "Backspace");
+                tap("keyUp", "Backspace");
+                return;
             case "\t":
-                sendKey("Tab");
-                break;
+                tap("rawKeyDown", "Tab");
+                tap("keyUp", "Tab");
+                return;
             case "\u001b":
-                sendKey("Escape");
-                break;
+                tap("rawKeyDown", "Escape");
+                tap("keyUp", "Escape");
+                return;
             case "\u001bOA":
-                sendKey("Up");
-                break;
+                tap("rawKeyDown", "Up");
+                tap("keyUp", "Up");
+                return;
             case "\u001bOB":
-                sendKey("Down");
-                break;
+                tap("rawKeyDown", "Down");
+                tap("keyUp", "Down");
+                return;
             case "\u001bOC":
-                sendKey("Right");
-                break;
+                tap("rawKeyDown", "Right");
+                tap("keyUp", "Right");
+                return;
             case "\u001bOD":
-                sendKey("Left");
-                break;
+                tap("rawKeyDown", "Left");
+                tap("keyUp", "Left");
+                return;
             case " ":
-                wc.sendInputEvent({ type: "char", keyCode: " " });
-                break;
-            default:
-                if (cmd.length === 1) wc.sendInputEvent({ type: "char", keyCode: cmd });
+                wc.sendInputEvent({ type: "char", keyCode: " ", modifiers });
+                return;
+        }
+
+        if (cmd.length === 1) {
+            const code = cmd.charCodeAt(0);
+            if (code >= 1 && code <= 26) {
+                const letter = String.fromCharCode(code + 96);
+                tap("rawKeyDown", letter, ["control"]);
+                tap("keyUp", letter, ["control"]);
+                return;
+            }
+            if (code >= 32 && code !== 127) {
+                if (typeof wc.insertText === "function") {
+                    wc.insertText(cmd);
+                } else {
+                    wc.sendInputEvent({ type: "char", keyCode: cmd, modifiers });
+                }
+                return;
+            }
         }
     }
     hide() {
         if (this.view && this.visible) {
             this.win.removeBrowserView(this.view);
             this.visible = false;
+            this._forwardInput = false;
         }
     }
     setBounds(bounds) {
@@ -206,6 +344,53 @@ class StationHost {
         const url = `data:text/html;charset=utf-8,${encodeURIComponent(BROWSER_PLACEHOLDER_HTML)}`;
         this._attach(url, bounds, "browser");
         return { ok: true, url: "placeholder" };
+    }
+    probeDevServerUrl() {
+        const http = require("http");
+        const editorPort = String(this.settings.vscodePort || 9888);
+        const ttyPort = String(this.settings.port || 3000);
+        const ports = [
+            5173, 5174, 5175, 5176, 5177,
+            3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009,
+            4000, 4001, 4002, 4003, 4004,
+            4200, 4201,
+            5000, 5001, 5002, 5003,
+            8000, 8001, 8002, 8003,
+            8080, 8081, 8082, 8083,
+            8888, 8889,
+            9000, 9001, 9002,
+            9888
+        ];
+
+        const check = port => new Promise(resolve => {
+            if (String(port) === editorPort) return resolve(null);
+            const req = http.get({
+                hostname: "127.0.0.1",
+                port,
+                path: "/",
+                timeout: 1200
+            }, res => {
+                res.resume();
+                if (res.statusCode && res.statusCode < 500) {
+                    resolve(`http://127.0.0.1:${port}`);
+                } else {
+                    resolve(null);
+                }
+            });
+            req.on("error", () => resolve(null));
+            req.setTimeout(1200, () => {
+                req.destroy();
+                resolve(null);
+            });
+        });
+
+        return ports.reduce((chain, port) => {
+            return chain.then(found => {
+                if (found) return found;
+                if (String(port) === ttyPort) return null;
+                return check(port);
+            });
+        }, Promise.resolve(null));
     }
     destroy() {
         this.hide();

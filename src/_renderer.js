@@ -226,6 +226,30 @@ window.finishUiBoot = () => {
     if (typeof window.registerKeyboardShortcuts === "function") {
         window.registerKeyboardShortcuts();
     }
+
+    window._relayStationKey = (type, e) => {
+        if (!window.uiReady || !window.session || window.session.station === "terminal") return false;
+        if (e.target && e.target.closest && e.target.closest(".modal, input, textarea, select, [contenteditable='true']")) {
+            return false;
+        }
+        ipc.send("station-key-event", {
+            type,
+            key: e.key,
+            code: e.code,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey,
+            metaKey: e.metaKey
+        });
+        return true;
+    };
+    window.addEventListener("keydown", e => {
+        if (window._relayStationKey("keyDown", e)) e.preventDefault();
+    }, true);
+    window.addEventListener("keyup", e => {
+        if (window._relayStationKey("keyUp", e)) e.preventDefault();
+    }, true);
+
     requestAnimationFrame(() => {
         if (window.stations) window.stations._fitTerminal();
         if (window.stations && window.session && window.session.station !== "terminal") {
@@ -1360,6 +1384,10 @@ window.addEventListener("blur", () => {
 
 // Prevent showing menu, exiting fullscreen or app with keyboard shortcuts
 document.addEventListener("keydown", e => {
+    const stationActive = window.session && window.session.station !== "terminal";
+    if (stationActive && !e.target.closest(".modal, input, textarea, select")) {
+        return;
+    }
     if (e.key === "Alt") {
         e.preventDefault();
     }

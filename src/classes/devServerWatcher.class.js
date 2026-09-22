@@ -1,6 +1,7 @@
 class DevServerWatcher {
     constructor() {
-        this._pattern = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(\d+)(?:[^\s\u001b"'<>]*)?/gi;
+        this._urlPattern = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(?::(\d+))?(?:[^\s\u001b"'<>]*)?/gi;
+        this._barePattern = /(?:^|[\s|>])(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(\d+)(?:[^\s\u001b"'<>]*)?/gi;
         this._hooked = new WeakSet();
     }
     watch(terminal) {
@@ -10,22 +11,63 @@ class DevServerWatcher {
             if (typeof e.data === "string") this._scan(e.data);
         });
     }
-    _scan(text) {
-        const cleaned = text.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, " ");
-        let match;
-        const found = new Set();
-        while ((match = this._pattern.exec(cleaned)) !== null) found.add(match[0]);
-        if (!found.size || !window.session) return;
-        const url = Array.from(found).pop();
+    _normalizeUrl(raw) {
+        if (!raw) return null;
+        let url = raw.replace(/[)\]},;]+$/, "");
+        if (!/^https?:\/\//i.test(url)) {
+            url = `http://${url}`;
+        }
         try {
             const parsed = new URL(url);
-            const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
-            const ttyPort = String(window.settings.port || 3000);
-            const editorPort = String(window.settings.vscodePort || 9888);
-            if (port === ttyPort || port === editorPort) return;
-            window.session.setDevServer({ url: parsed.origin, port });
+            if (!parsed.hostname) return null;
+            if (!parsed.port && parsed.protocol === "http:") parsed.port = "80";
+            if (!parsed.port && parsed.protocol === "https:") parsed.port = "443";
+            return parsed;
         } catch (e) {
-            window.session.setDevServer({ url, port: null });
+            return null;
+        }
+    }
+    _acceptUrl(parsed) {
+        if (!parsed || !window.session) return false;
+        const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+        const editorPort = String(window.settings.vscodePort || 9888);
+        if (port === editorPort) return false;
+        const ttyPort = String(window.settings.port || 3000);
+        if (port === ttyPort && parsed.pathname === "/") {
+            return false;
+        }
+        return true;
+    }
+    _publish(parsed) {
+        if (!this._acceptUrl(parsed)) return;
+        window.session.setDevServer({
+            url: parsed.origin,
+            port: parsed.port
+        });
+    }
+    _scan(text) {
+        const cleaned = text.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, " ");
+        const found = [];
+
+        this._urlPattern.lastIndex = 0;
+        let match;
+        while ((match = this._urlPattern.exec(cleaned)) !== null) {
+            found.push(match[0]);
+        }
+
+        this._barePattern.lastIndex = 0;
+        while ((match = this._barePattern.exec(cleaned)) !== null) {
+            found.push(match[0].trim());
+        }
+
+        if (!found.length) return;
+
+        for (let i = found.length - 1; i >= 0; i--) {
+            const parsed = this._normalizeUrl(found[i]);
+            if (parsed && this._acceptUrl(parsed)) {
+                this._publish(parsed);
+                return;
+            }
         }
     }
 }

@@ -317,8 +317,25 @@ app.on('ready', async () => {
         e.sender.send("station-show-browser-reply", result);
     });
 
-    ipc.on("station-key-input", (e, cmd) => {
-        stationHost.injectKey(cmd);
+    ipc.on("station-key-input", (e, payload) => {
+        stationHost.injectKey(payload);
+    });
+
+    ipc.on("station-key-event", (e, payload) => {
+        stationHost.injectKeyboardEvent(payload);
+    });
+
+    ipc.on("station-focus-embedded", () => {
+        stationHost.focusEmbedded();
+    });
+
+    ipc.on("station-probe-dev-server", async (e) => {
+        const url = await stationHost.probeDevServerUrl();
+        e.sender.send("station-probe-dev-server-reply", url);
+    });
+
+    ipc.on("station-input-forward", (e, enabled) => {
+        stationHost.setInputForward(enabled);
     });
 
     // Support for more terminals, used for creating tabs (currently limited to 4 extra terms)

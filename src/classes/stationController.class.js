@@ -165,6 +165,7 @@ class StationController {
             setTimeout(() => this._fitTerminal(), 80);
         } else {
             this._scheduleBoundsSync();
+            this.ipc.send("station-focus-embedded");
         }
         this._busy = false;
     }
@@ -225,9 +226,10 @@ class StationController {
         }
 
         if (station === "browser") {
-            const url = this.session.devServer && this.session.devServer.url;
-            this._showBrowserSurface(url);
-            this.ipc.once("station-show-browser-reply", (e, result) => {
+            const openBrowser = url => {
+                this._showBrowserSurface(url);
+            };
+            const finishBrowser = (e, result) => {
                 if (!result || !result.ok) {
                     this._updateChrome("terminal");
                     this.ipc.send("station-hide");
@@ -237,7 +239,29 @@ class StationController {
                     return;
                 }
                 this._finishEmbedded(station, options);
+            };
+            this.ipc.once("station-show-browser-reply", finishBrowser);
+
+            const known = this.session.devServer && this.session.devServer.url;
+            if (known) {
+                openBrowser(known);
+                return;
+            }
+
+            this.ipc.once("station-probe-dev-server-reply", (e, found) => {
+                if (found) {
+                    try {
+                        const parsed = new URL(found);
+                        this.session.setDevServer({ url: parsed.origin, port: parsed.port });
+                    } catch (err) {
+                        this.session.setDevServer({ url: found, port: null });
+                    }
+                    openBrowser(found);
+                } else {
+                    openBrowser(null);
+                }
             });
+            this.ipc.send("station-probe-dev-server");
         }
     }
     toggleHyperfocus() {
